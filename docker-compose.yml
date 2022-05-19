@@ -1,0 +1,164 @@
+version: "3.2"
+services:
+  nginx-proxy:
+    image: jc21/nginx-proxy-manager:latest
+    container_name: nginx-proxy
+    restart: always
+    ports:
+      - "80:80"
+      - "81:81"
+      - "443:443"
+    environment:
+      DB_SQLITE_FILE: "/data/database.sqlite"
+    volumes:
+      - nginx-data:/data
+      - nginx-letsencrypt:/etc/letsencrypt
+    depends_on:
+      - nginx-db
+    networks:
+      - ecrop-network
+
+  nginx-db:
+    image: yobasystems/alpine-mariadb:latest
+    container_name: nginx-proxy-db
+    restart: always
+    environment:
+      - MYSQL_ROOT_PASSWORD="npm"
+      - MYSQL_DATABASE="npm"
+      - MYSQL_USER="npm"
+      - MYSQL_PASSWORD="npm"
+    volumes:
+      - nginx-db-volume:/var/lib/mysql
+    networks:
+      - ecrop-network
+
+  tensorflow-serving:
+    image: tensorflow/serving:2.8.0-gpu
+    container_name: tensorflow-serving
+    restart: always
+    ports:
+      - "8500:8500"
+    depends_on:
+      - nginx-proxy
+    command:
+      - --port=8500
+      - --rest_api_port=0
+      - --model_config_file=/models/models.conf
+      - --model_config_file_poll_wait_seconds=360
+    volumes:
+      - /media/DATA1/shared/PBL6/models:/models
+    networks:
+      - ecrop-network
+    runtime: nvidia
+
+  ecrop-web:
+    image: tomcat:9
+    container_name: ecrop-web
+    restart: always
+    ports:
+      - "8080:8080"
+    depends_on:
+      - ecrop-api
+      - nginx-proxy
+    volumes:
+      - ecrop-web-config:/usr/local/tomcat/
+    networks:
+      - ecrop-network
+
+  ecrop-ia-api:
+    image: python:3.9.12-bullseye
+    container_name: ecrop-ia-api
+    restart: always
+    #volumes:
+    #  - /media/DATA1/shared/PBL6/volumes/ecrop-ia-api:/
+    depends_on:
+      - nginx-proxy
+    networks:
+      - ecrop-network
+
+  ecrop-db:
+    image: postgres:14.2
+    container_name: ecrop-db
+    restart: always
+    environment:
+      POSTGRES_USER: ecrop
+      POSTGRES_PASSWORD: P5yz6y9n5uCywGHEVEofo%27yt
+      POSTGRES_DB: ecrop
+    ports:
+      - "5432:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      - db-hba-conf:/etc/postgresql/11/main/pg_hba.conf
+    networks:
+      - ecrop-network
+
+  node-red:
+    image: nodered/node-red
+    container_name: noder-red
+    restart: always
+    ports:
+      - "1880:1880"
+    volumes:
+      - node_red_data:/data
+    networks:
+      - ecrop-network
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: rabbitmq
+    restart: always
+    ports:
+      - 5672:5672
+      - 15672:15672
+    volumes:
+      - rabbit-data:/var/lib/rabbitmq/
+      - rabbit-logs:/var/log/rabbitmq
+    networks:
+      - ecrop-network
+  
+  zabbix-agent:
+    image: zabbix/zabbix-agent:latest
+    container_name: zabbix-agent
+    restart: always
+    environment:
+      ZBX_HOSTNAME: "ecrop-master-agent"
+      ZBX_SERVER_HOST: "zabbix-ecrop.ddns.net"
+    ports:
+      - 10050:10050
+    volumes:
+      - zabbix-agent-config:/etc/zabbix/zabbix_agentd.d
+    networks:
+      - ecrop-network
+
+volumes:
+  nginx-data:
+    external: false
+  nginx-letsencrypt:
+    external: false
+  nginx-db-volume:
+    external: false
+  db-data:
+    external: false
+  db-hba-conf:
+    external: false
+  db-agent-conf:
+    external: false
+  ecrop-api-config:
+    external: false
+  ecrop-web-config:
+    external: false
+  node_red_data:
+    external: false
+  rabbit-logs:
+    external: false
+  rabbit-data:
+    external: false
+  zabbix-agent-config:
+    external: false
+
+networks:
+  ecrop-network:
+    external: false
+    driver: bridge
+    ipam:
+      driver: default
