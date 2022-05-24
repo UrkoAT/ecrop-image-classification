@@ -56,23 +56,44 @@ services:
     container_name: ecrop-web
     restart: always
     ports:
-      - "8080:8080"
+      - "9103:9103"
     depends_on:
-      - ecrop-api
       - nginx-proxy
     volumes:
       - ecrop-web-config:/usr/local/tomcat/
     networks:
       - ecrop-network
 
-  ecrop-ia-api:
-    image: python:3.9.12-bullseye
-    container_name: ecrop-ia-api
+  ecrop-web-api:
+    image: tomcat:9
+    container_name: ecrop-web-api
     restart: always
-    #volumes:
-    #  - /media/DATA1/shared/PBL6/volumes/ecrop-ia-api:/
+    ports:
+      - "9101:9101"
     depends_on:
       - nginx-proxy
+    volumes:
+      - ecrop-web-api-config:/usr/local/tomcat/
+    networks:
+      - ecrop-network
+
+  ecrop-ia-api:
+    image: pbl6-ia:dev2
+    container_name: ecrop-ia-api
+    restart: always
+    environment:
+      - MODEL=ecrop-main-serving
+      - VERSION=1
+      - MODEL_INPUT_LAYER=input_1
+      - MODEL_OUTPUT_LAYER=conv2d_211
+      - GRPC_SERVER=tensorflow-serving
+      - GRPC_PORT=8500
+      - RABBIT_SERVER=rabbitmq
+      - RABBIT_PORT=5672
+    depends_on:
+      - nginx-proxy
+      - tensorflow-serving
+      - rabbitmq
     networks:
       - ecrop-network
 
@@ -115,20 +136,20 @@ services:
       - rabbit-logs:/var/log/rabbitmq
     networks:
       - ecrop-network
-  
-  zabbix-agent:
-    image: zabbix/zabbix-agent:latest
-    container_name: zabbix-agent
-    restart: always
-    environment:
-      ZBX_HOSTNAME: "ecrop-master-agent"
-      ZBX_SERVER_HOST: "zabbix-ecrop.ddns.net"
-    ports:
-      - 10050:10050
-    volumes:
-      - zabbix-agent-config:/etc/zabbix/zabbix_agentd.d
-    networks:
-      - ecrop-network
+  #zabbix-agent:
+  #  image: zabbix/zabbix-agent2:latest
+  #  container_name: zabbix-agent
+  #  restart: always
+  #  environment:
+  #    ZBX_HOSTNAME: "Master Server"
+  #    ZBX_SERVER_HOST: "zabbix-ecrop.ddns.net"
+  #  ports:
+  #    - 10050:10050
+  #  volumes:
+  #    - zabbix-agent-config:/etc/zabbix/zabbix_agentd.d
+  #    - /var/run/docker.sock:/tmp/sock.sock
+  #  networks:
+  #    - ecrop-network
 
 volumes:
   nginx-data:
@@ -146,6 +167,8 @@ volumes:
   ecrop-api-config:
     external: false
   ecrop-web-config:
+    external: false
+  ecrop-web-api-config:
     external: false
   node_red_data:
     external: false
