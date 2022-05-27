@@ -78,14 +78,14 @@ services:
       - ecrop-network
 
   ecrop-ia-api:
-    image: pbl6-ia:dev2
+    image: pbl6-ia:prod
     container_name: ecrop-ia-api
     restart: always
     environment:
       - MODEL=ecrop-main-serving
       - VERSION=1
       - MODEL_INPUT_LAYER=input_1
-      - MODEL_OUTPUT_LAYER=conv2d_211
+      - MODEL_OUTPUT_LAYER=conv2d_18
       - GRPC_SERVER=tensorflow-serving
       - GRPC_PORT=8500
       - RABBIT_SERVER=rabbitmq
@@ -123,6 +123,8 @@ services:
       - node_red_data:/data
     networks:
       - ecrop-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   rabbitmq:
     image: rabbitmq:3-management-alpine

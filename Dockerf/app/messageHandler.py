@@ -11,9 +11,10 @@ from PIL import Image
 
 RABBIT_SERVER = getenv('RABBIT_SERVER', 'rabbitmq')
 RABBIT_PORT = getenv('RABBIT_PORT', '5672')
+RABBIT_USER = getenv('RABBIT_USER', 'node-publisher')
+RABBIT_PASS = getenv('RABBIT_PASS', 'F]k[N$u6SMY2Rum-')
 
-
-URL = f'amqp://node-publisher:F]k[N$u6SMY2Rum-@{RABBIT_SERVER}:{RABBIT_PORT}'
+URL = f'amqp://{RABBIT_USER}:{RABBIT_PASS}@{RABBIT_SERVER}:{RABBIT_PORT}'
 
 conn = pika.BlockingConnection(pika.URLParameters(URL))
 channel = conn.channel()
@@ -41,16 +42,17 @@ def on_request(ch, method, props, body):
     cropped = array(img.crop((0, 20, 480, 500)))
 
     processed = process_image(cropped)
+    # processed = cropped
 
-    im_file = Image.fromarray(processed).crop((128, 128, 384, 384))
+    im_file = Image.fromarray(processed).crop((111, 111, 367, 367))
     im_file.save(path)
 
     with open(path, 'rb') as f:
         response = base64.b64encode(f.read())
 
     ch.basic_publish(
-        exchange='images',
-        routing_key='images.processed',
+        exchange='',
+        routing_key=props.reply_to,
         properties=pika.BasicProperties(
             correlation_id=props.correlation_id),
         body=response.decode('utf-8')
@@ -65,6 +67,7 @@ def on_request(ch, method, props, body):
 
 print('[*] Server started. Listening...')
 
+channel.basic_qos(prefetch_count=1)
 channel.basic_consume(on_message_callback=on_request, queue='images.process')
 
 try:
